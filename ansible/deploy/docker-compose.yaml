@@ -1,0 +1,16 @@
+networks:
+  frontend:
+    external: true
+    name: frontend
+services:
+  addressbook:
+    deploy:
+      replicas: 1
+    hostname: webserver
+    image: nexus.devopsprofessional.co.in:9001/devops-pheonix/webserver:00.0.0
+    networks:
+    - frontend
+    ports:
+    - 8081:80
+    restart: always
+version: '3.9'
