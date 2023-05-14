@@ -1,0 +1,77 @@
+def props
+pipeline {
+    agent{
+        label 'maven'
+    }
+    options {
+        timestamps()
+    }
+    parameters { 
+        string(name: 'SERVER', defaultValue: 'risknarrative.techinterviewsuk.com', description: 'IP/DNS of server') 
+        }
+    stages {
+        stage('Checkout scm') {
+            steps {
+                script {
+                    checkout([  
+                        $class: 'GitSCM', 
+                        branches: [[name: '*/main']], 
+                        doGenerateSubmoduleConfigurations: false, 
+                        submoduleCfg: [], 
+                        userRemoteConfigs: [[credentialsId: 'github-interview-token', url: 'https://github.com/RiskNarrative/sre-exercise.git']]
+                    ])
+                }
+            }
+        }
+        stage('get version') {
+            steps {
+                script {
+                    echo "${props}"
+                    props = sh (script: 'git describe --tags --abbrev=0',returnStdout: true).trim()
+                    echo "${props}"
+                }
+            }
+        }
+        stage("Build") {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'nexus-creds', passwordVariable: 'NEXUS_PASSWORD',usernameVariable: 'NEXUS_USERNAME')]) {
+                script {
+                    sh """
+                        docker build . -t nexus.devopsprofessional.co.in:9001/devops-pheonix/webserver:${props}
+                        docker login  nexus.devopsprofessional.co.in:9001 -u  ${NEXUS_USERNAME} -p ${NEXUS_PASSWORD}
+                        docker push nexus.devopsprofessional.co.in:9001/devops-pheonix/webserver:${props}
+                    """
+                }
+                }
+            }
+        }
+        stage("Deploy") {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'risknarrative-ssh-private-key', keyFileVariable: 'DEPLOY_SSH_KEY',usernameVariable: 'DEPLOY_USERNAME')]) {
+                script {
+                    sh """
+                            pip3 install -r requirements.txt
+                            python3 update_image_tag.py --path deploy/docker-compose.yaml --service webserver --dockerimage nexus.devopsprofessional.co.in:9001/devops-pheonix/addressbook --dockertag ${props}
+                            scp -i ${DEPLOY_SSH_KEY} ${WORKSPACE}/deploy/docker-compose.yaml ${DEPLOY_USERNAME}@${DOCKER_SWARM_SERVER}:/opt/deployment/webserver/
+                            ssh -i ${DEPLOY_SSH_KEY} ${DEPLOY_USERNAME}@${DOCKER_SWARM_SERVER} nexus.devopsprofessional.co.in:9001/devops-pheonix/webserver:${props}
+                            ssh -i ${DEPLOY_SSH_KEY} ${DEPLOY_USERNAME}@${DOCKER_SWARM_SERVER} docker stack deploy --compose-file /opt/deployment/webserver/docker-compose.yaml webserver
+                    """
+                }
+                }
+            }
+        }
+        }
+    post {
+        always {
+            script {
+                cleanWs()  
+            }
+        }
+        success{
+            slackSend message: "Deployed sample   BUILD URL: ${BUILD_URL}", color: "#439FE0", channel: "#dev-notifications", tokenCredentialId: "slack-global-notifier"
+        }
+        failure{
+            slackSend message: "FAILED: Deployed sample  webserver  BUILD URL: ${BUILD_URL}", color: "#FF0000", channel: "#dev-notifications", tokenCredentialId: "slack-global-notifier"
+        }
+    }
+    }
