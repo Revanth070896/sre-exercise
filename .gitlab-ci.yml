@@ -1,0 +1,39 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  PACAKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/risknarrative/${PACKAGE_VERSION}"
+
+.build:
+  stage: build
+  image: ubuntu:18.04
+  script:
+    - git tag --delete $(git tag)
+    - git fetch --all
+    - LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1) | cut -d "." -f2); echo $LATEST_TAG
+    - echo "Archiving artifacts and publishing"
+    - tar -cvzf risknarrative-${LATEST_TAG}.tgz src
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file risknarrative-${LATEST_TAG}.tgz "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/risknarrative/$LATEST_TAG/risknarrative-${LATEST_TAG}.tgz"'
+  rules:
+    - if: $CI_COMMIT_TAG
+
+.deploy:
+  stage: deploy
+  image: ubuntu:18.04
+  before_script:
+    - |
+        echo "$PROD_SSH_KEY" | base64 -d > /tmp/prod_key
+        chmod 400 /tmp/prod_key
+        mkdir ~/.ssh
+        echo '''HOST *
+                StrictHostKeyChecking no
+                UserKnownHostsFile /dev/null
+                IdentityFile /tmp/prod_key''' > ~/.ssh/config
+        ssh -i /tmp/prod_key ${PROD_DEPLOY_SVC_USER}@${PROD_SERVER} "rm -rf /tmp/src"
+        ssh -i /tmp/prod_key ${PROD_DEPLOY_SVC_USER}@${PROD_SERVER} 'wget --header="JOB-TOKEN: $CI_JOB_TOKEN" ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/risknarrative/$LATEST_TAG/risknarrative-${LATEST_TAG}.tgz -O /tmp/risknarrative-${LATEST_TAG}.tgz'
+        ssh -i /tmp/prod_key ${PROD_DEPLOY_SVC_USER}@${PROD_SERVER} "sudo tar -xvzf /tmp/risknarrative-${LATEST_TAG}.tgz "
+        ssh -i /tmp/prod_key ${PROD_DEPLOY_SVC_USER}@${PROD_SERVER} "sudo cp -r /tmp/src/*  /var/www/html/"
+        ssh -i /tmp/prod_key ${PROD_DEPLOY_SVC_USER}@${PROD_SERVER} "sudo service nginx restart"
+  rules:
+    - if: $CI_COMMIT_TAG
