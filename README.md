@@ -7,23 +7,23 @@ This repo hosts a basic html page and complete automated infra and ci management
 
 
 # NOTE:
-The repo has terraform ansible code embedded inside it. Ideallly terraform and ansible code will be in seperate repositories.
+The repo has terraform ansible code embedded inside it. Ideally terraform and ansible code will be in seperate repositories.
 However for interview purpose embedded inside same repo
 
 
-The application is deployed through jenkins and the jenkinsfile is present in `main` branch. the deployment is triggered by github webhooks.
+The application is deployed through jenkins and the jenkinsfile is present in `main` branch. the deployment is triggered through github webhooks.
 
 
 
 # Docker usage
 
-The docekr file exists in the repo and even the compose file.
+The docker file exists in the repo and even the compose file.
 
-When ever a new tag is create the jenkins pipeline will run and deploy in machine where docker swarm ins running.
+When ever a new tag is created the jenkins pipeline will run and deploy in machine where docker swarm ins running.
 
-While doing so the latest image tag is updated using script `update_image_tag.py` and copies the latest compose file to swarm machine and deploys
+While doing so that latest image tag is updated using script `update_image_tag.py` and copies the latest compose file to swarm machine and deploys
 
-The docker swarm has already netwrok `frontend` created manaully
+The docker swarm has already have the network `frontend` created manaully
 
 ```
 
