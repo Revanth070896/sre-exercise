@@ -17,7 +17,7 @@ The application is deployed through jenkins and the jenkinsfile is present in `m
 
 # Docker usage
 
-The docker file exists in the repo and even the compose file.
+The docker file exists in that repo and even in the compose file.
 
 When ever a new tag is created the jenkins pipeline will run and deploy in machine where docker swarm ins running.
 
